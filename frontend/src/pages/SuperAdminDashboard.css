@@ -1,0 +1,87 @@
+.super-admin-dashboard .hospital-catalog-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  border: 1px solid #dbe6f8;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 14px;
+}
+
+.super-admin-dashboard .hospital-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.super-admin-dashboard .hospital-card {
+  border: 1px solid #dce7f8;
+  border-radius: 12px;
+  background: #f9fbff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.super-admin-dashboard .hospital-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.super-admin-dashboard .hospital-card h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.super-admin-dashboard .hospital-card p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.super-admin-dashboard .hospital-badge {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.super-admin-dashboard .hospital-badge.is-emergency {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.super-admin-dashboard .hospital-badge.is-standard {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.super-admin-dashboard .hospital-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: #334155;
+}
+
+.super-admin-dashboard .hospital-meta span {
+  border: 1px solid #d3e2fa;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #ffffff;
+}
+
+.super-admin-dashboard .hospital-card .btn-remove {
+  align-self: flex-end;
+}
+
+@media (max-width: 640px) {
+  .super-admin-dashboard .hospital-catalog-form {
+    grid-template-columns: 1fr;
+  }
+}

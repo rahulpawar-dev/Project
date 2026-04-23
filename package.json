@@ -1,0 +1,28 @@
+{
+  "name": "mediqueue-system",
+  "version": "1.0.0",
+  "description": "Complete MERN Stack MediQueue with real-time updates",
+  "main": "index.js",
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ..",
+    "start-backend": "cd backend && npm run dev",
+    "start-frontend": "cd frontend && npm run dev",
+    "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\""
+  },
+  "keywords": [
+    "MERN",
+    "Queue Management",
+    "Hospital",
+    "Patient",
+    "Real-time",
+    "React",
+    "Node.js",
+    "MongoDB",
+    "Express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.1"
+  }
+}

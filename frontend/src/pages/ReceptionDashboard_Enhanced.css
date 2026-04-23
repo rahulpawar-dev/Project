@@ -1,0 +1,596 @@
+.reception-dashboard {
+  --surface: rgba(255, 255, 255, 0.96);
+  --surface-border: #d8e2f1;
+  --text-main: #1f2937;
+  --text-muted: #5f6b7f;
+  --primary: #1d4ed8;
+  --primary-soft: #e8f0ff;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #dc2626;
+  min-height: 100vh;
+  padding: 24px;
+  position: relative;
+  overflow-x: hidden;
+  color: var(--text-main);
+  font-family: Inter, 'Segoe UI', 'Segoe UI Variable', Tahoma, Geneva, Verdana, sans-serif;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.14), transparent 42%),
+    radial-gradient(circle at 95% 100%, rgba(16, 185, 129, 0.12), transparent 38%),
+    linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
+}
+
+.reception-dashboard .navbar {
+  max-width: 1220px;
+  margin: 0 auto;
+  border-radius: 16px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 16px 20px;
+}
+
+.reception-dashboard .navbar-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.reception-dashboard .navbar h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.35rem, 2.2vw, 1.8rem);
+}
+
+.reception-dashboard .user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reception-dashboard .user-info span {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.reception-dashboard .logout-btn {
+  border: 1px solid #bfd2fb;
+  background: #ffffff;
+  color: var(--primary);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reception-dashboard .logout-btn:hover {
+  background: #f0f5ff;
+  border-color: #a5bffc;
+}
+
+.reception-dashboard .dashboard-content {
+  max-width: 1220px;
+  margin: 18px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.reception-dashboard .dashboard-subtitle {
+  margin: 0;
+  border-left: 4px solid #1d4ed8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-muted);
+  padding: 12px 16px;
+  line-height: 1.55;
+  font-size: 0.98rem;
+}
+
+.reception-dashboard .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.reception-dashboard .stat-card {
+  border-radius: 14px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  padding: 18px;
+}
+
+.reception-dashboard .stat-card h3 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  color: #0f172a;
+}
+
+.reception-dashboard .stat-card p {
+  margin: 6px 0 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.reception-dashboard .controls,
+.reception-dashboard .card {
+  border-radius: 16px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.reception-dashboard .controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.reception-dashboard .controls .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.reception-dashboard .controls .control-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reception-dashboard .controls input,
+.reception-dashboard .controls select,
+.reception-dashboard .hospital-staff-form input,
+.reception-dashboard .hospital-staff-form select,
+.reception-dashboard .staff-filter-bar select {
+  border: 1px solid #cbd8ef;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 0.9rem;
+  padding: 9px 11px;
+}
+
+.reception-dashboard input:focus,
+.reception-dashboard select:focus {
+  outline: none;
+  border-color: #8ab0ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.reception-dashboard .main-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.reception-dashboard .card {
+  padding: 18px;
+}
+
+.reception-dashboard .card h2 {
+  margin: 0 0 12px 0;
+  font-size: 1.2rem;
+  color: #0f172a;
+}
+
+.reception-dashboard .appointments-list,
+.reception-dashboard .queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.reception-dashboard .appointment-card,
+.reception-dashboard .queue-card {
+  border-radius: 12px;
+  border: 1px solid #dce7f6;
+  background: #f9fbff;
+  padding: 12px;
+}
+
+.reception-dashboard .apt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.reception-dashboard .apt-header h4,
+.reception-dashboard .queue-info h4 {
+  margin: 0;
+  color: #111827;
+}
+
+.reception-dashboard .appointment-card p,
+.reception-dashboard .queue-card p,
+.reception-dashboard .queue-info p {
+  margin: 5px 0;
+  color: #4b5563;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.reception-dashboard .queue-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.reception-dashboard .queue-position {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reception-dashboard .queue-info {
+  flex: 1;
+}
+
+.reception-dashboard .status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: var(--primary-soft);
+  color: #1e40af;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reception-dashboard .status-badge.scheduled,
+.reception-dashboard .status-badge.waiting {
+  border-color: #fcd34d;
+  background: #fef9c3;
+  color: #92400e;
+}
+
+.reception-dashboard .status-badge.in-progress {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.reception-dashboard .status-badge.completed {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.reception-dashboard .status-badge.cancelled {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.reception-dashboard .btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.reception-dashboard .btn:hover {
+  transform: translateY(-1px);
+}
+
+.reception-dashboard .btn-primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
+}
+
+.reception-dashboard .btn-secondary {
+  background: #ffffff;
+  color: #1d4ed8;
+  border-color: #bfd2fb;
+}
+
+.reception-dashboard .btn-small {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.reception-dashboard .btn-cancel-apt {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.reception-dashboard .btn-cancel-apt:hover {
+  background: #b91c1c;
+}
+
+.reception-dashboard .no-data {
+  margin: 0;
+  border: 1px dashed #c8d6ef;
+  background: #f8fbff;
+  border-radius: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.reception-dashboard .hospital-staff-card {
+  margin-top: 2px;
+}
+
+.reception-dashboard .staff-helper-text {
+  margin: 0 0 14px 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.reception-dashboard .hospital-staff-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  border: 1px solid #dbe6f8;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 14px;
+}
+
+.reception-dashboard .hospital-staff-form .control-group,
+.reception-dashboard .staff-filter-bar .control-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.reception-dashboard .hospital-staff-form .control-group label,
+.reception-dashboard .staff-filter-bar label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reception-dashboard .staff-form-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+.reception-dashboard .staff-image-preview {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reception-dashboard .staff-image-preview img {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  border: 1px solid #bfdbfe;
+  object-fit: cover;
+  background: #ffffff;
+}
+
+.reception-dashboard .staff-image-clear-btn {
+  border: 1px solid #bfd2fb;
+  background: #ffffff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reception-dashboard .staff-image-clear-btn:hover {
+  background: #f0f5ff;
+}
+
+.reception-dashboard .staff-form-actions .btn {
+  width: 100%;
+}
+
+.reception-dashboard .staff-filter-bar {
+  margin: 14px 0;
+}
+
+.reception-dashboard .staff-filter-bar select {
+  min-width: 250px;
+}
+
+.reception-dashboard .staff-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.reception-dashboard .staff-directory-card {
+  border: 1px solid #dce7f8;
+  border-radius: 12px;
+  background: #f9fbff;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.reception-dashboard .staff-directory-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+}
+
+.reception-dashboard .staff-directory-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reception-dashboard .staff-directory-info h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.reception-dashboard .staff-directory-info p {
+  margin: 3px 0;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.reception-dashboard .staff-directory-role {
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+.reception-dashboard .staff-directory-card .btn-cancel-apt {
+  grid-column: 1 / -1;
+  justify-self: flex-end;
+}
+
+.reception-dashboard .modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 200;
+}
+
+.reception-dashboard .modal-content {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+  padding: 20px;
+}
+
+.reception-dashboard .modal-content h3 {
+  margin: 0 0 14px 0;
+  color: #0f172a;
+}
+
+.reception-dashboard .modal-content form {
+  display: grid;
+  gap: 10px;
+}
+
+.reception-dashboard .modal-content input,
+.reception-dashboard .modal-content select {
+  border: 1px solid #cbd8ef;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.reception-dashboard .modal-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.reception-dashboard .logout-btn:focus-visible,
+.reception-dashboard .btn:focus-visible,
+.reception-dashboard .btn-small:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .reception-dashboard {
+    padding: 16px;
+  }
+
+  .reception-dashboard .navbar-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reception-dashboard .user-info {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .reception-dashboard .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reception-dashboard .controls .control-group {
+    min-width: 0;
+  }
+
+  .reception-dashboard .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reception-dashboard .staff-filter-bar select {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .reception-dashboard .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reception-dashboard .card {
+    padding: 14px;
+  }
+
+  .reception-dashboard .queue-card {
+    flex-direction: column;
+  }
+
+  .reception-dashboard .queue-position {
+    width: 36px;
+    height: 36px;
+  }
+
+  .reception-dashboard .modal-buttons {
+    flex-direction: column;
+  }
+
+  .reception-dashboard .modal-buttons .btn {
+    width: 100%;
+  }
+}

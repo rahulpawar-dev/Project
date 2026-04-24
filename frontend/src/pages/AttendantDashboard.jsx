@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../context/store';
 import { queueAPI, appointmentAPI } from '../utils/api';
+import { subscribeToRealtimeEvents } from '../utils/realtime';
 import AnimatedBackground from '../components/AnimatedBackground';
 import Footer from '../components/Footer';
 import './AttendantDashboard_Enhanced.css';
@@ -22,6 +23,13 @@ export default function AttendantDashboard() {
 
   const departments = ['General', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics'];
   const activeHospitalName = userHospitalName;
+  const formatEstimatedWaitTime = (minutes) => {
+    const numericMinutes = Number(minutes);
+    if (!Number.isFinite(numericMinutes) || numericMinutes <= 0) {
+      return '0.0';
+    }
+    return numericMinutes.toFixed(1);
+  };
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -50,14 +58,14 @@ export default function AttendantDashboard() {
     }
   }, [selectedDept, selectedDate, activeHospitalName]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await queueAPI.getQueueStats();
       setStats(response.data.data);
     } catch (err) {
       console.log('Error fetching stats');
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isCareStaff) {
@@ -80,7 +88,28 @@ export default function AttendantDashboard() {
     fetchStats();
 
     return () => clearInterval(interval);
-  }, [isCareStaff, fetchQueue, fetchAppointments, navigate, userHospitalName, userRole]);
+  }, [isCareStaff, fetchQueue, fetchAppointments, fetchStats, navigate, userHospitalName, userRole]);
+
+  useEffect(() => {
+    if (!isCareStaff) {
+      return undefined;
+    }
+
+    const syncDashboardData = () => {
+      fetchQueue();
+      fetchAppointments();
+      fetchStats();
+    };
+
+    const unsubscribe = subscribeToRealtimeEvents({
+      onQueueUpdated: syncDashboardData,
+      onQueueStatusChanged: syncDashboardData,
+      onPatientCheckedIn: syncDashboardData,
+      onAppointmentUpdated: syncDashboardData,
+    });
+
+    return unsubscribe;
+  }, [isCareStaff, fetchQueue, fetchAppointments, fetchStats]);
 
   const handleStatusChange = async (queueId, newStatus) => {
     try {
@@ -246,7 +275,7 @@ export default function AttendantDashboard() {
                           <option value="high">High</option>
                         </select>
                       </td>
-                      <td>{item.estimatedWaitTime} min</td>
+                      <td>{formatEstimatedWaitTime(item.estimatedWaitTime)} min</td>
                       <td>
                         <span className={`status-badge ${item.status}`}>
                           {item.status.toUpperCase()}

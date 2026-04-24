@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../context/store';
 import { queueAPI, appointmentAPI } from '../utils/api';
+import { subscribeToRealtimeEvents } from '../utils/realtime';
 import { readImageFileAsDataUrl } from '../utils/imageUpload';
 import {
   addHospitalStaffEntry,
@@ -28,6 +29,7 @@ export default function ReceptionDashboard() {
     appointmentDate: '',
     timeSlot: '',
     reason: '',
+    priority: 'routine',
   });
   const [hospitalStaff, setHospitalStaff] = useState([]);
   const [staffForm, setStaffForm] = useState({
@@ -46,6 +48,13 @@ export default function ReceptionDashboard() {
 
   const departments = ['General', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics'];
   const activeHospitalName = userHospitalName;
+  const formatEstimatedWaitTime = (minutes) => {
+    const numericMinutes = Number(minutes);
+    if (!Number.isFinite(numericMinutes) || numericMinutes <= 0) {
+      return '0.0';
+    }
+    return numericMinutes.toFixed(1);
+  };
   const filteredHospitalStaff = useMemo(() => {
     if (!activeHospitalName) {
       return [];
@@ -59,6 +68,45 @@ export default function ReceptionDashboard() {
 
   const refreshHospitalStaffData = useCallback(() => {
     setHospitalStaff(getHospitalStaffEntries());
+  }, []);
+
+  useEffect(() => {
+    if (activeHospitalName && staffForm.hospitalName !== activeHospitalName) {
+      setStaffForm((prev) => ({ ...prev, hospitalName: activeHospitalName }));
+    }
+  }, [activeHospitalName, staffForm.hospitalName]);
+
+  const fetchAppointments = useCallback(async () => {
+    try {
+      const response = await appointmentAPI.getDepartmentAppointments(
+        selectedDept,
+        selectedDate,
+        { hospitalName: activeHospitalName }
+      );
+      setAppointments(response.data.data);
+    } catch (err) {
+      console.log('Error fetching appointments');
+    }
+  }, [selectedDept, selectedDate, activeHospitalName]);
+
+  const fetchQueue = useCallback(async () => {
+    try {
+      const response = await queueAPI.getQueueByDepartment(selectedDept, {
+        hospitalName: activeHospitalName,
+      });
+      setQueue(response.data.data);
+    } catch (err) {
+      console.log('Error fetching queue');
+    }
+  }, [selectedDept, activeHospitalName]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await queueAPI.getQueueStats();
+      setStats(response.data.data);
+    } catch (err) {
+      console.log('Error fetching stats');
+    }
   }, []);
 
   useEffect(() => {
@@ -83,46 +131,36 @@ export default function ReceptionDashboard() {
     refreshHospitalStaffData();
 
     return () => clearInterval(interval);
-  }, [selectedDept, selectedDate, user, userHospitalName, navigate, refreshHospitalStaffData]);
+  }, [
+    user,
+    userHospitalName,
+    navigate,
+    refreshHospitalStaffData,
+    fetchAppointments,
+    fetchQueue,
+    fetchStats,
+  ]);
 
   useEffect(() => {
-    if (activeHospitalName && staffForm.hospitalName !== activeHospitalName) {
-      setStaffForm((prev) => ({ ...prev, hospitalName: activeHospitalName }));
+    if (!user || user.role !== 'reception') {
+      return undefined;
     }
-  }, [activeHospitalName, staffForm.hospitalName]);
 
-  const fetchAppointments = async () => {
-    try {
-      const response = await appointmentAPI.getDepartmentAppointments(
-        selectedDept,
-        selectedDate,
-        { hospitalName: activeHospitalName }
-      );
-      setAppointments(response.data.data);
-    } catch (err) {
-      console.log('Error fetching appointments');
-    }
-  };
+    const syncDashboardData = () => {
+      fetchAppointments();
+      fetchQueue();
+      fetchStats();
+    };
 
-  const fetchQueue = async () => {
-    try {
-      const response = await queueAPI.getQueueByDepartment(selectedDept, {
-        hospitalName: activeHospitalName,
-      });
-      setQueue(response.data.data);
-    } catch (err) {
-      console.log('Error fetching queue');
-    }
-  };
+    const unsubscribe = subscribeToRealtimeEvents({
+      onQueueUpdated: syncDashboardData,
+      onQueueStatusChanged: syncDashboardData,
+      onPatientCheckedIn: syncDashboardData,
+      onAppointmentUpdated: syncDashboardData,
+    });
 
-  const fetchStats = async () => {
-    try {
-      const response = await queueAPI.getQueueStats();
-      setStats(response.data.data);
-    } catch (err) {
-      console.log('Error fetching stats');
-    }
-  };
+    return unsubscribe;
+  }, [user, fetchAppointments, fetchQueue, fetchStats]);
 
   const handleBookAppointment = async (e) => {
     e.preventDefault();
@@ -140,6 +178,7 @@ export default function ReceptionDashboard() {
         appointmentDate: '',
         timeSlot: '',
         reason: '',
+        priority: 'routine',
       });
       fetchAppointments();
       alert('Appointment booked successfully!');
@@ -174,6 +213,15 @@ export default function ReceptionDashboard() {
       } catch (err) {
         alert('Error cancelling appointment');
       }
+    }
+  };
+
+  const handleQueuePriorityChange = async (queueId, nextPriority) => {
+    try {
+      await queueAPI.updatePriority(queueId, nextPriority);
+      fetchQueue();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error updating queue priority');
     }
   };
 
@@ -358,6 +406,10 @@ export default function ReceptionDashboard() {
                     <p>
                       <strong>Reason:</strong> {apt.reason}
                     </p>
+                    <p>
+                      <strong>Appointment Priority:</strong>{' '}
+                      {String(apt.priority || 'routine').toUpperCase()}
+                    </p>
                     {apt.doctor?.name && (
                       <p>
                         <strong>Doctor:</strong> {apt.doctor.name}
@@ -402,8 +454,21 @@ export default function ReceptionDashboard() {
                       {item.doctor?.name && <p>Doctor: {item.doctor.name}</p>}
                       {item.hospital?.name && <p>Hospital: {item.hospital.name}</p>}
                       <p>Status: {item.status.toUpperCase()}</p>
-                      <p>Priority: <strong>{item.priority.toUpperCase()}</strong></p>
-                      <p>Est. Wait: {item.estimatedWaitTime} min</p>
+                      <div className="queue-priority-row">
+                        <span>Priority:</span>
+                        <select
+                          value={item.priority || 'low'}
+                          className="queue-priority-select"
+                          onChange={(e) =>
+                            handleQueuePriorityChange(item._id, e.target.value)
+                          }
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                      </div>
+                      <p>Est. Wait: {formatEstimatedWaitTime(item.estimatedWaitTime)} min</p>
                     </div>
                   </div>
                 ))}
@@ -606,6 +671,20 @@ export default function ReceptionDashboard() {
                     {dept}
                   </option>
                 ))}
+              </select>
+
+              <select
+                value={appointmentForm.priority}
+                onChange={(e) =>
+                  setAppointmentForm((prev) => ({
+                    ...prev,
+                    priority: e.target.value,
+                  }))
+                }
+              >
+                <option value="routine">Routine (Low Queue Priority)</option>
+                <option value="urgent">Urgent (Medium Queue Priority)</option>
+                <option value="emergency">Emergency (High Queue Priority)</option>
               </select>
 
               <input

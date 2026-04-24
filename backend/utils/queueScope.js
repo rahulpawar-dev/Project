@@ -2,6 +2,15 @@ const Queue = require('../models/Queue');
 
 const WAIT_TIME_PER_PATIENT_MINUTES = 15;
 const ACTIVE_QUEUE_STATUSES = ['waiting', 'in-progress'];
+const QUEUE_PRIORITY_ORDER = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+const QUEUE_STATUS_ORDER = {
+  'in-progress': 0,
+  waiting: 1,
+};
 const EMPTY_HOSPITAL = { name: '', address: '', phone: '' };
 const EMPTY_DOCTOR = {
   id: '',
@@ -76,22 +85,87 @@ const getQueueScopeFromEntry = (entry) => ({
   doctor: normalizeDoctor(entry?.doctor || EMPTY_DOCTOR, entry?.department || ''),
 });
 
+const toTimeValue = (value) => {
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const getPriorityRank = (priority = 'low') => {
+  const normalizedPriority = String(priority || '').trim().toLowerCase();
+  return QUEUE_PRIORITY_ORDER[normalizedPriority] ?? QUEUE_PRIORITY_ORDER.low;
+};
+
+const getStatusRank = (status = 'waiting') => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  return QUEUE_STATUS_ORDER[normalizedStatus] ?? QUEUE_STATUS_ORDER.waiting;
+};
+
+const roundToSingleDecimal = (value) =>
+  Math.round((Number(value || 0) + Number.EPSILON) * 10) / 10;
+
+const getInProgressRemainingMinutes = (entry, nowTimestamp) => {
+  const inProgressStartTime = toTimeValue(entry?.inProgressAt);
+  if (!inProgressStartTime) {
+    return WAIT_TIME_PER_PATIENT_MINUTES;
+  }
+
+  const elapsedMinutes = Math.max((nowTimestamp - inProgressStartTime) / (1000 * 60), 0);
+  return roundToSingleDecimal(
+    Math.max(WAIT_TIME_PER_PATIENT_MINUTES - elapsedMinutes, 0)
+  );
+};
+
 const recalcQueuePositions = async (scope = {}) => {
   const activeFilter = buildActiveQueueFilter(scope);
   if (!activeFilter) {
     return;
   }
 
-  const activeQueue = await Queue.find(activeFilter).sort({ checkInTime: 1, createdAt: 1 });
+  const activeQueue = await Queue.find(activeFilter);
+
+  activeQueue.sort((left, right) => {
+    const statusDifference = getStatusRank(left.status) - getStatusRank(right.status);
+    if (statusDifference !== 0) {
+      return statusDifference;
+    }
+
+    const priorityDifference = getPriorityRank(left.priority) - getPriorityRank(right.priority);
+    if (priorityDifference !== 0) {
+      return priorityDifference;
+    }
+
+    const checkInDifference = toTimeValue(left.checkInTime) - toTimeValue(right.checkInTime);
+    if (checkInDifference !== 0) {
+      return checkInDifference;
+    }
+
+    return toTimeValue(left.createdAt) - toTimeValue(right.createdAt);
+  });
+
+  const nowTimestamp = Date.now();
+  let cumulativeWaitMinutes = 0;
 
   const updates = activeQueue
     .map((entry, index) => {
       const queuePosition = index + 1;
-      const estimatedWaitTime = queuePosition * WAIT_TIME_PER_PATIENT_MINUTES;
+      const shouldSetInProgressAt = entry.status === 'in-progress' && !entry.inProgressAt;
+      if (shouldSetInProgressAt) {
+        entry.inProgressAt = new Date(nowTimestamp);
+      }
+
+      const slotDurationMinutes = entry.status === 'in-progress'
+        ? getInProgressRemainingMinutes(entry, nowTimestamp)
+        : WAIT_TIME_PER_PATIENT_MINUTES;
+      const estimatedWaitTime = roundToSingleDecimal(cumulativeWaitMinutes + slotDurationMinutes);
+      cumulativeWaitMinutes += slotDurationMinutes;
+      const currentEstimatedWaitTime = Number(entry.estimatedWaitTime || 0);
+      const hasEstimatedWaitTimeChanged =
+        Math.abs(currentEstimatedWaitTime - estimatedWaitTime) >= 0.1;
 
       if (
         entry.queuePosition !== queuePosition
-        || entry.estimatedWaitTime !== estimatedWaitTime
+        || hasEstimatedWaitTimeChanged
+        || shouldSetInProgressAt
       ) {
         entry.queuePosition = queuePosition;
         entry.estimatedWaitTime = estimatedWaitTime;

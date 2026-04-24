@@ -11,6 +11,7 @@ const {
 } = require('../utils/queueScope');
 const { normalizePayment, validatePaidPayment } = require('../utils/paymentValidation');
 const { ensureHospitalScope, belongsToHospital, normalizeHospitalName } = require('../utils/hospitalAccess');
+const { emitRealtimeEvent } = require('../utils/realtime');
 
 const parseHospitalNamesQuery = (hospitalNamesQuery) => {
   const rawValues = Array.isArray(hospitalNamesQuery)
@@ -50,6 +51,30 @@ const buildDoctorQueueKey = ({ doctorId = '', doctorName = '', department = '' }
   const normalizedDepartment = normalizeHospitalName(department);
   return `name:${normalizedDoctorName}::dept:${normalizedDepartment}`;
 };
+
+const ALLOWED_QUEUE_PRIORITIES = new Set(['low', 'medium', 'high']);
+
+const normalizeQueuePriorityInput = (priority) => String(priority || '').trim().toLowerCase();
+
+const toIdString = (value) => {
+  if (!value) {
+    return '';
+  }
+  return typeof value === 'string' ? value : value.toString();
+};
+
+const buildQueueRealtimePayload = (queueEntry, extras = {}) => ({
+  queueId: toIdString(queueEntry?._id),
+  patientId: toIdString(queueEntry?.patientId),
+  department: String(queueEntry?.department || '').trim(),
+  hospitalName: String(queueEntry?.hospital?.name || '').trim(),
+  doctorId: String(queueEntry?.doctor?.id || '').trim(),
+  doctorName: String(queueEntry?.doctor?.name || '').trim(),
+  status: String(queueEntry?.status || '').trim(),
+  priority: String(queueEntry?.priority || '').trim(),
+  estimatedWaitTime: Number(queueEntry?.estimatedWaitTime || 0),
+  ...extras,
+});
 
 // @route   POST /api/queue/join
 // @desc    Join the queue (Patient action)
@@ -110,6 +135,10 @@ exports.joinQueue = async (req, res) => {
       priority: 'low',
       estimatedWaitTime: (queueCount + 1) * WAIT_TIME_PER_PATIENT_MINUTES,
     });
+
+    const queueRealtimePayload = buildQueueRealtimePayload(newQueue, { action: 'joined' });
+    emitRealtimeEvent('patient-checked-in', queueRealtimePayload);
+    emitRealtimeEvent('queue-updated', queueRealtimePayload);
 
     res.status(201).json({
       success: true,
@@ -266,10 +295,16 @@ exports.updateQueueStatus = async (req, res) => {
       });
     }
 
+    const previousStatus = queueEntry.status;
     queueEntry.status = status;
 
     if (status === 'in-progress') {
       queueEntry.attendantId = attendantId;
+      if (previousStatus !== 'in-progress' || !queueEntry.inProgressAt) {
+        queueEntry.inProgressAt = new Date();
+      }
+    } else {
+      queueEntry.inProgressAt = null;
     }
 
     if (status === 'completed') {
@@ -288,14 +323,22 @@ exports.updateQueueStatus = async (req, res) => {
       });
     }
 
-    if (status === 'completed' || status === 'cancelled') {
-      await recalcQueuePositions(getQueueScopeFromEntry(queueEntry));
-    }
+    await recalcQueuePositions(getQueueScopeFromEntry(queueEntry));
+
+    const refreshedQueueEntry = await Queue.findById(queueEntry._id)
+      .populate('patientId', 'name phone email')
+      .populate('attendantId', 'name');
+    const queueRealtimePayload = buildQueueRealtimePayload(
+      refreshedQueueEntry || queueEntry,
+      { action: 'status-updated' }
+    );
+    emitRealtimeEvent('queue-status-changed', queueRealtimePayload);
+    emitRealtimeEvent('queue-updated', queueRealtimePayload);
 
     res.status(200).json({
       success: true,
       message: 'Queue status updated successfully',
-      data: queueEntry,
+      data: refreshedQueueEntry || queueEntry,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -309,9 +352,17 @@ exports.updateQueuePriority = async (req, res) => {
   try {
     const { queueId } = req.params;
     const { priority } = req.body;
+    const normalizedPriority = normalizeQueuePriorityInput(priority);
     const hospitalScope = ensureHospitalScope(res, req.user);
     if (!hospitalScope) {
       return;
+    }
+
+    if (!ALLOWED_QUEUE_PRIORITIES.has(normalizedPriority)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Priority must be one of: low, medium, high',
+      });
     }
 
     const queueEntry = await Queue.findById(queueId);
@@ -333,13 +384,23 @@ exports.updateQueuePriority = async (req, res) => {
       });
     }
 
-    queueEntry.priority = priority;
+    queueEntry.priority = normalizedPriority;
     await queueEntry.save();
+    await recalcQueuePositions(getQueueScopeFromEntry(queueEntry));
+
+    const refreshedQueueEntry = await Queue.findById(queueEntry._id)
+      .populate('patientId', 'name phone email')
+      .populate('attendantId', 'name');
+    const queueRealtimePayload = buildQueueRealtimePayload(
+      refreshedQueueEntry || queueEntry,
+      { action: 'priority-updated' }
+    );
+    emitRealtimeEvent('queue-updated', queueRealtimePayload);
 
     res.status(200).json({
       success: true,
       message: 'Queue priority updated',
-      data: queueEntry,
+      data: refreshedQueueEntry || queueEntry,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -391,6 +452,9 @@ exports.leaveQueue = async (req, res) => {
     queueEntry.status = 'cancelled';
     await queueEntry.save();
     await recalcQueuePositions(getQueueScopeFromEntry(queueEntry));
+    const queueRealtimePayload = buildQueueRealtimePayload(queueEntry, { action: 'cancelled' });
+    emitRealtimeEvent('queue-status-changed', queueRealtimePayload);
+    emitRealtimeEvent('queue-updated', queueRealtimePayload);
 
     res.status(200).json({
       success: true,

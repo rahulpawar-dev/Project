@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../context/store';
 import { queueAPI, appointmentAPI } from '../utils/api';
+import { subscribeToRealtimeEvents } from '../utils/realtime';
 import AnimatedBackground from '../components/AnimatedBackground';
 import Footer from '../components/Footer';
 import Exercise3DCard from '../components/Exercise3DCard';
@@ -299,18 +300,7 @@ export default function PatientDashboard() {
     payerReference: paymentState.payerReference,
   });
 
-  useEffect(() => {
-    if (!user || user.role !== 'patient') {
-      navigate('/');
-      return;
-    }
-    if (userId) {
-      fetchQueueStatus();
-      fetchAppointments();
-    }
-  }, [user, userId, navigate]);
-
-  const fetchQueueStatus = async () => {
+  const fetchQueueStatus = useCallback(async () => {
     if (!userId) {
       setQueueStatus(null);
       return;
@@ -322,9 +312,9 @@ export default function PatientDashboard() {
     } catch (err) {
       setQueueStatus(null);
     }
-  };
+  }, [userId]);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     if (!userId) {
       setAppointments([]);
       return;
@@ -336,7 +326,41 @@ export default function PatientDashboard() {
     } catch (err) {
       console.log('Error fetching appointments');
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'patient') {
+      navigate('/');
+      return;
+    }
+    if (userId) {
+      fetchQueueStatus();
+      fetchAppointments();
+    }
+  }, [user, userId, navigate, fetchQueueStatus, fetchAppointments]);
+
+  useEffect(() => {
+    if (!userId || user?.role !== 'patient') {
+      return undefined;
+    }
+
+    const syncPatientData = (payload = {}) => {
+      const payloadPatientId = String(payload?.patientId || '').trim();
+      if (!payloadPatientId || payloadPatientId === String(userId)) {
+        fetchQueueStatus();
+        fetchAppointments();
+      }
+    };
+
+    const unsubscribe = subscribeToRealtimeEvents({
+      onQueueUpdated: syncPatientData,
+      onQueueStatusChanged: syncPatientData,
+      onPatientCheckedIn: syncPatientData,
+      onAppointmentUpdated: syncPatientData,
+    });
+
+    return unsubscribe;
+  }, [userId, user?.role, fetchQueueStatus, fetchAppointments]);
 
   const handleLeaveQueue = async () => {
     try {

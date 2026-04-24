@@ -27,13 +27,17 @@ A complete real-time healthcare queue platform with role-based dashboards for pa
 - View appointments and queue by department/date (auto-locked to login hospital)
 - Start/complete patient consultation
 - Update patient priority (Low, Medium, High)
+- Queue order auto-recalculates by priority (high to low) for waiting patients
+- Estimated wait time auto-refreshes using real-time in-progress tracking
 - Real-time queue statistics for own hospital
 - Auto-refresh queue every 3 seconds
 
 ### Reception Dashboard
 - Book appointments for patients
+- Set appointment urgency (Routine/Urgent/Emergency) with queue priority mapping
 - View appointments by date and department (auto-locked to login hospital)
 - Manage queue by department for own hospital
+- Update queue priority directly from reception queue cards
 - Cancel appointments
 - View real-time statistics
 - Auto-refresh appointments every 3 seconds
@@ -82,31 +86,28 @@ A complete real-time healthcare queue platform with role-based dashboards for pa
 
 ### Backend Setup
 
-1. Navigate to backend directory:
-```bash
-cd backend
-```
-
-2. Install dependencies:
+1. Install all workspace dependencies from the project root:
 ```bash
 npm install
 ```
 
-3. Create `.env` file with your configuration:
+2. Create `backend/.env` with your configuration:
 ```env
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/mediqueue
 JWT_SECRET=your_super_secret_jwt_key_change_in_production_12345
 NODE_ENV=development
+CLIENT_ORIGIN=http://localhost:3000
+CLIENT_ORIGINS=http://localhost:3000
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 ```
 
-4. Start MongoDB (if running locally):
+3. Start MongoDB (if running locally):
 ```bash
 mongod
 ```
 
-5. Run the server:
+4. Run the full app in development:
 ```bash
 npm run dev
 ```
@@ -115,30 +116,38 @@ Backend will run on `http://localhost:5000`
 
 ### Frontend Setup
 
-1. Navigate to frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. (Optional) Copy `frontend/.env.example` to `frontend/.env` and set keys:
+1. Copy `frontend/.env.example` to `frontend/.env` and set keys:
 ```env
+VITE_API_BASE_URL=http://localhost:5000/api
 VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
 If `VITE_GOOGLE_CLIENT_ID` is not set, Google login button is unavailable.
 Without `VITE_GOOGLE_MAPS_API_KEY`, nearby hospital search still works using Super Admin hospital coordinates, but embedded map preview is disabled.
 
-4. Start development server:
+2. The frontend is served at `http://localhost:3000` while `npm run dev` is running from the project root.
+
+### Deployment Notes
+
+The repo uses npm workspaces, so a single `npm install` from the project root installs both backend and frontend dependencies.
+
+For production builds:
+
 ```bash
-npm run dev
+npm run build
+npm start
 ```
 
-Frontend will run on `http://localhost:3000`
+Set these environment variables in production:
+
+```env
+MONGODB_URI=your_production_mongodb_uri
+JWT_SECRET=your_long_random_secret
+NODE_ENV=production
+CLIENT_ORIGIN=https://your-frontend-domain.com
+CLIENT_ORIGINS=https://your-frontend-domain.com
+VITE_API_BASE_URL=https://your-backend-domain.com/api
+```
 
 ## API Endpoints
 
@@ -310,6 +319,7 @@ The application uses Socket.io for real-time updates:
 - Queue status changes broadcast to all connected clients
 - New patient check-ins update queue positions
 - Status changes update dashboard instantly
+- Attendant, reception, and patient views auto-sync without manual page refresh
 
 ## Security Features
 

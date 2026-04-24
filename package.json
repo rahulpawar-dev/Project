@@ -1,13 +1,18 @@
 {
   "name": "mediqueue-system",
   "version": "1.0.0",
+  "private": true,
   "description": "Complete MERN Stack MediQueue with real-time updates",
   "main": "index.js",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ..",
-    "start-backend": "cd backend && npm run dev",
-    "start-frontend": "cd frontend && npm run dev",
-    "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\""
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w frontend",
+    "start": "npm run start -w backend",
+    "install-all": "npm install"
   },
   "keywords": [
     "MERN",

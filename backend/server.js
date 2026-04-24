@@ -2,21 +2,46 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const socketIO = require('socket.io');
+const { setSocketServer } = require('./utils/realtime');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+const rawAllowedOrigins = process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+const allowedOrigins = rawAllowedOrigins
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS origin ${origin} is not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+};
+
 const io = socketIO(server, {
   cors: {
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
   },
 });
+setSocketServer(io);
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.set('trust proxy', 1);
 
 // MongoDB Connection
 mongoose
@@ -36,6 +61,18 @@ app.use('/api/appointments', require('./routes/appointments'));
 app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'Server is running' });
 });
+
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+
+  if (fs.existsSync(frontendDistPath)) {
+    app.use(express.static(frontendDistPath));
+
+    app.get(/^\/(?!api).*/, (req, res) => {
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+  }
+}
 
 // Socket.io for real-time updates
 io.on('connection', (socket) => {

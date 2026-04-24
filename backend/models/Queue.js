@@ -115,6 +115,10 @@ const queueSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    inProgressAt: {
+      type: Date,
+      default: null,
+    },
     totalWaitTime: {
       type: Number, // in minutes
       default: 0,

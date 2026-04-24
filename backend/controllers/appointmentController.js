@@ -9,6 +9,7 @@ const {
 } = require('../utils/queueScope');
 const { normalizePayment, validatePaidPayment } = require('../utils/paymentValidation');
 const { ensureHospitalScope, belongsToHospital } = require('../utils/hospitalAccess');
+const { emitRealtimeEvent } = require('../utils/realtime');
 
 const EMPTY_HOSPITAL = { name: '', address: '', phone: '' };
 const EMPTY_DOCTOR = {
@@ -19,6 +20,35 @@ const EMPTY_DOCTOR = {
   phone: '',
   image: '',
 };
+const APPOINTMENT_PRIORITY_TO_QUEUE_PRIORITY = {
+  routine: 'low',
+  urgent: 'medium',
+  emergency: 'high',
+};
+const QUEUE_PRIORITY_WEIGHT = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+const toIdString = (value) => {
+  if (!value) {
+    return '';
+  }
+  return typeof value === 'string' ? value : value.toString();
+};
+
+const buildAppointmentRealtimePayload = (appointment, extras = {}) => ({
+  appointmentId: toIdString(appointment?._id),
+  patientId: toIdString(appointment?.patientId),
+  department: String(appointment?.department || '').trim(),
+  hospitalName: String(appointment?.hospital?.name || '').trim(),
+  doctorId: String(appointment?.doctor?.id || '').trim(),
+  doctorName: String(appointment?.doctor?.name || '').trim(),
+  status: String(appointment?.status || '').trim(),
+  priority: String(appointment?.priority || '').trim(),
+  ...extras,
+});
 
 const normalizeHospital = (hospital) => ({
   name: String(hospital?.name || '').trim(),
@@ -34,6 +64,20 @@ const normalizeDoctor = (doctor, fallbackDepartment = '') => ({
   phone: String(doctor?.phone || '').trim(),
   image: String(doctor?.image || '').trim(),
 });
+
+const normalizeAppointmentPriority = (priority = 'routine') => {
+  const normalized = String(priority || '').trim().toLowerCase();
+  return APPOINTMENT_PRIORITY_TO_QUEUE_PRIORITY[normalized] ? normalized : 'routine';
+};
+
+const mapAppointmentPriorityToQueuePriority = (priority = 'routine') =>
+  APPOINTMENT_PRIORITY_TO_QUEUE_PRIORITY[normalizeAppointmentPriority(priority)];
+
+const shouldPromoteQueuePriority = (currentPriority = 'low', targetPriority = 'low') => {
+  const current = QUEUE_PRIORITY_WEIGHT[String(currentPriority || '').trim().toLowerCase()] || QUEUE_PRIORITY_WEIGHT.low;
+  const target = QUEUE_PRIORITY_WEIGHT[String(targetPriority || '').trim().toLowerCase()] || QUEUE_PRIORITY_WEIGHT.low;
+  return target > current;
+};
 
 const buildSlotConflictQuery = ({
   appointmentDate,
@@ -108,6 +152,8 @@ exports.createAppointment = async (req, res) => {
         : requestedHospital;
     const normalizedDoctor = normalizeDoctor(doctor || EMPTY_DOCTOR, department);
     const normalizedPayment = normalizePayment(payment);
+    const normalizedAppointmentPriority = normalizeAppointmentPriority(priority);
+    const queuePriority = mapAppointmentPriorityToQueuePriority(normalizedAppointmentPriority);
 
     if (requester.role === 'patient' && !normalizedHospital.name) {
       return res.status(400).json({
@@ -183,7 +229,7 @@ exports.createAppointment = async (req, res) => {
       appointmentDate: appointmentSlotDate,
       timeSlot,
       reason,
-      priority: priority || 'routine',
+      priority: normalizedAppointmentPriority,
       hospital: normalizedHospital,
       doctor: normalizedDoctor,
       payment: normalizedPayment,
@@ -217,8 +263,61 @@ exports.createAppointment = async (req, res) => {
         doctor: normalizedDoctor,
         payment: normalizedPayment,
         queuePosition: queueCount + 1,
-        priority: 'low',
+        priority: queuePriority,
         estimatedWaitTime: (queueCount + 1) * WAIT_TIME_PER_PATIENT_MINUTES,
+      });
+
+      await recalcQueuePositions(queueScope);
+      const refreshedQueueStatus = await Queue.findById(queueStatus._id);
+      if (refreshedQueueStatus) {
+        queueStatus = refreshedQueueStatus;
+      }
+    } else {
+      let activeQueueWasUpdated = false;
+      let shouldRecalculateQueuePositions = false;
+
+      if (
+        !activeQueue.appointmentId
+        || activeQueue.appointmentId.toString() !== appointment._id.toString()
+      ) {
+        activeQueue.appointmentId = appointment._id;
+        activeQueueWasUpdated = true;
+      }
+
+      if (
+        activeQueue.status === 'waiting'
+        && shouldPromoteQueuePriority(activeQueue.priority, queuePriority)
+      ) {
+        activeQueue.priority = queuePriority;
+        activeQueueWasUpdated = true;
+        shouldRecalculateQueuePositions = true;
+      }
+
+      if (activeQueueWasUpdated) {
+        await activeQueue.save();
+      }
+
+      if (shouldRecalculateQueuePositions) {
+        await recalcQueuePositions(getQueueScopeFromEntry(activeQueue));
+      }
+
+      if (activeQueueWasUpdated || shouldRecalculateQueuePositions) {
+        const refreshedQueueStatus = await Queue.findById(activeQueue._id);
+        if (refreshedQueueStatus) {
+          queueStatus = refreshedQueueStatus;
+        }
+      }
+    }
+
+    const appointmentRealtimePayload = buildAppointmentRealtimePayload(appointment, {
+      action: 'created',
+    });
+    emitRealtimeEvent('appointment-updated', appointmentRealtimePayload);
+    if (queueStatus) {
+      emitRealtimeEvent('queue-updated', {
+        ...appointmentRealtimePayload,
+        queueId: toIdString(queueStatus._id),
+        action: 'queue-linked',
       });
     }
 
@@ -432,6 +531,10 @@ exports.updateAppointment = async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     );
+    const appointmentRealtimePayload = buildAppointmentRealtimePayload(updatedAppointment, {
+      action: 'updated',
+    });
+    emitRealtimeEvent('appointment-updated', appointmentRealtimePayload);
 
     res.status(200).json({
       success: true,
@@ -504,7 +607,28 @@ exports.cancelAppointment = async (req, res) => {
       queueEntry.status = 'cancelled';
       await queueEntry.save();
       await recalcQueuePositions(getQueueScopeFromEntry(queueEntry));
+      emitRealtimeEvent('queue-status-changed', {
+        queueId: toIdString(queueEntry._id),
+        patientId: toIdString(queueEntry.patientId),
+        department: String(queueEntry.department || '').trim(),
+        hospitalName: String(queueEntry?.hospital?.name || '').trim(),
+        status: 'cancelled',
+        priority: String(queueEntry.priority || '').trim(),
+        action: 'cancelled',
+      });
+      emitRealtimeEvent('queue-updated', {
+        queueId: toIdString(queueEntry._id),
+        patientId: toIdString(queueEntry.patientId),
+        department: String(queueEntry.department || '').trim(),
+        hospitalName: String(queueEntry?.hospital?.name || '').trim(),
+        status: 'cancelled',
+        priority: String(queueEntry.priority || '').trim(),
+        action: 'cancelled',
+      });
     }
+    emitRealtimeEvent('appointment-updated', buildAppointmentRealtimePayload(appointment, {
+      action: 'cancelled',
+    }));
 
     res.status(200).json({
       success: true,
